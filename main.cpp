@@ -2,9 +2,12 @@
 #define MAIN_CPP
 
 #include "shader.h" // glad is included here
+#include "VAO.h"
 #include "stb_image_implementation.h" // for importing images
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <math.h>
+#include <vector>
 
 using namespace std;
 
@@ -21,6 +24,7 @@ void processInput(GLFWwindow *window) {
         glfwSetWindowShouldClose(window, true);
 }
 
+/* Init GLFW and Glad */
 void init() {
     /* ---------------------------- Init GLFW & GLAD ---------------------------- */
 
@@ -37,12 +41,10 @@ void init() {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);   
 }
 
-int main()
-{
-    init(); // init glfw
-
-    /* ---------------------------- Create the window ---------------------------- */
+/* Build the display window */
+GLFWwindow* buildWindow() {
     GLFWwindow* window;
+
     const int startWidth = 600, startHeight = 400;
 
     /* Create a windowed mode window and its OpenGL context */
@@ -51,7 +53,7 @@ int main()
     {
         cout << "Failed to create GLFW window" << endl;
         glfwTerminate();
-        return -1;
+        return nullptr;
     }
 
     /* Make the window's context current */
@@ -64,111 +66,115 @@ int main()
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         cout << "Failed to initialize GLAD" << endl;
-        return -1;
+        return nullptr;
     }
 
-    Shader myShader("shaders/vertexShader.txt", "shaders/fragmentShader.txt"); // build the shader program
+    return window;
+}
+
+float* genSineCurve(unsigned int points, unsigned int &vertices) {
+    // returns a set of triangle vertices that span the area under a sine curve
+    const int rectangles = points  - 1;
+    const int triangles = rectangles * 2;
+    vertices = triangles * 3;
     
-    /* ---------------------------- Build the VBO & VAO ---------------------------- */
+    const float x_width = 3.0f;
 
-    /* Load our first triangle into a Vertex Buffer Obect */
-    float vertices[] = {
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-        0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+    const int attributes = 3; 
+    const int x_stretch = 15; // factor we stretch the x-axis
 
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+    float * vertexArray = new float[vertices * attributes];
 
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    for (int i = 0; i < rectangles; i ++) {
+        // our rectangle goes from (x_1, -1), (x_2, -1), (x_1, y_1), (x_2, y_2)
+        float x_1 = -x_width + 2.0f * x_width * i / points;
+        float x_2 = -x_width + 2.0f * x_width * (i + 1) / points;
+        float y_1 = sin(x_1 * x_stretch) / 5, y_2 = sin(x_2 * x_stretch) / 5;
 
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        // (x_1, -1), (x_2, -1), (x_1, y_1)
+        vertexArray[18*i] = x_1;
+        vertexArray[18*i + 1] = y_1;
+        vertexArray[18*i + 2] = 0.0f;
 
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        vertexArray[18*i + 3] = x_1;
+        vertexArray[18*i + 4] = -1.0f;
+        vertexArray[18*i + 5] = 0.0f;
 
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-    };
-    glm::vec3 cubePositions[] = {
-        glm::vec3( 1.0f,  1.0f,  -1.0f), 
-        glm::vec3( 0.0f,  0.1f, -0.0f),
-        glm::vec3( 1.0f,  0.0f,  1.0f)
-    };
+        vertexArray[18*i + 6] = x_2;
+        vertexArray[18*i + 7] = -1.0f;
+        vertexArray[18*i + 8] = 0.0f;
 
-    /* Gen the VAO and VBO and EBO */
-    unsigned int VBO, VAO, EBO;
+        // (x_2, y_2), (x_1, y_1), (x_2, -1)
+        vertexArray[18*i + 9] = x_2;
+        vertexArray[18*i + 10] = y_2;
+        vertexArray[18*i + 11] = 0.0f;
 
-    glGenVertexArrays(1, &VAO); // create the VAO
-    glGenBuffers(1, &VBO); 
-    glGenBuffers(1, &EBO); 
+        vertexArray[18*i + 12] = x_1;
+        vertexArray[18*i + 13] = y_1;
+        vertexArray[18*i + 14] = 0.0f;
+        
+        vertexArray[18*i + 15] = x_2;
+        vertexArray[18*i + 16] = -1.0f;
+        vertexArray[18*i + 17] = 0.0f;
+    }
 
-    glBindVertexArray(VAO); // bind the VAO, the the buffer, then configure vertex attributes
+    return vertexArray;
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO); // bind VBO
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW); // add the vertices to the VBO
+}
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0); // configure attributes
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3*sizeof(float))); // configure attributes
-    glEnableVertexAttribArray(0); 
-    glEnableVertexAttribArray(1);   
+int main()
+{
+    init(); // init glfw
 
-    glBindVertexArray(0); 
+    GLFWwindow* window = buildWindow(); // build the window
 
     glEnable(GL_DEPTH_TEST); // enable depth testing
 
-    /* ---------------------------- 3D ---------------------------- */
-    // scale by 0.5 on each axis then rotate 90 degrees
-    glm::mat4 trans = glm::mat4(1.0f);
-    trans = glm::scale(trans, glm::vec3(0.5, 0.5, 0.5));
+    Shader myShader("shaders/vertexShader.txt", "shaders/fragmentShader.txt"); // build the shader program
 
-    unsigned int texture;
-    glGenTextures(1, &texture); // gen the texture
-    glBindTexture(GL_TEXTURE_2D, texture); // bind the texture
+    /* Load the sine curve into a VAO */
+    unsigned int samplePoints = 100000;
+    unsigned int numVertices;
+    float * sineCurve = genSineCurve(samplePoints, numVertices);
+    
+    unsigned int attributes[] = {3};
+    unsigned int stride = 3 * sizeof(float);
+    MyVAO myVao;
+    myVao.addData(sineCurve, numVertices, stride);
+    myVao.addAttrib(attributes, 1);
 
-    stbi_set_flip_vertically_on_load(true); // flip the image as coordinates are reversed
+    /* Define attributes for each sine curve */
+    struct Curve {
+        float colour = 0.0f;
+        float colorStep = 0.01f;
+        float speed = 0.01f;
 
-    /* Import Giles */
-    // load the image in 
-    int width, height, nrChannels;
-    unsigned char *data = stbi_load("obama.jpeg", &width, &height, &nrChannels, 0); 
-    if (data)
-    {
-        // generate the texture to the binded texture variable
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
+        glm::vec3 trans;
+        glm::vec3 transStep;
+
+        Curve (float pos) { 
+            speed = pos / 500;
+            transStep = glm::vec3(speed, speed, speed);
+            trans = glm::vec3(0.0f, -1 + 2.0f * pos, 1.0f * pos);
+        }
+
+        void step() {
+            // update the step
+            if (((trans.x > 1) && (transStep.x > 0)) || ((trans.x < -1) && (transStep.x < 0))) {
+                transStep.x = -transStep.x;
+            } 
+
+            // make the step
+            trans.x += transStep.x;
+        }
+    };
+    const int numCurves = 9;
+    vector<Curve> curves;
+    for (int i = 0; i < numCurves; i ++) {
+        Curve c((float)i / numCurves);
+
+        curves.emplace_back(c);
     }
-    else
-    {
-        std::cout << "Failed to load texture" << std::endl;
-    }
-
-    stbi_image_free(data); // free the image from memory
 
     /* ---------------------------- Render Loop ---------------------------- */
     while (!glfwWindowShouldClose(window))
@@ -176,26 +182,22 @@ int main()
         /* Handle user input */
         processInput(window);
 
-        /* Render here */
         /* Clear the colour buffer with dark turqoise */
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f); // (state setting)
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f); // (state setting)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // (state using)
 
-        /* Show the image */
+        /* Create the transformation matrix */
         myShader.use();
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glBindVertexArray(VAO); // bind the VAO
+        for (Curve &curve: curves) {
+            glm::mat4 transform = glm::translate(glm::mat4(1.0f), curve.trans);
 
-        for (unsigned int i = 0; i < size(cubePositions); i ++) {
-            glm::mat4 transform = glm::mat4(1.0f); // init an identity matrix
-            transform = glm::translate(transform, cubePositions[i]); // translate first
-            float angle = glfwGetTime() * 50; // use the current time as the angle
-            transform = glm::rotate(transform, glm::radians(angle), glm::vec3(0.5, 0.5, 0.5)); // then rotate
-            myShader.setMat4("transform", transform); // pass the uniform matrix
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+            myShader.setMat4("transform", transform);
+            myShader.setFloat("color", curve.colour);
+
+            curve.step();
+
+            myVao.draw();
         }
-
-        glBindVertexArray(0); // unbind the VAO
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
@@ -205,8 +207,7 @@ int main()
     }
 
     /* De-allocate memory */
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
+    myVao.del();
     myShader.del();
 
     /* Terminate glfw */
